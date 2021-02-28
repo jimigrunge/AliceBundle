@@ -4,7 +4,11 @@ AliceBundle
 A [Symfony](http://symfony.com) bundle to manage fixtures with [nelmio/alice](https://github.com/nelmio/alice) and
 [fzaninotto/Faker](https://github.com/fzaninotto/Faker).
 
-Currently supports [Doctrine ORM](http://www.doctrine-project.org/projects/orm.html), [Doctrine ODM](http://doctrine-mongodb-odm.readthedocs.org/en/latest/), [Doctrine PHPCR ODM](http://doctrine-phpcr-odm.readthedocs.org/en/latest/).
+The database support is done in [FidryAliceDataFixtures](https://github.com/theofidry/AliceDataFixtures). Check this
+project to know which database/ORM is supported.
+
+**Warning: this is the documentation for HautelookAliceBundle 2.0. If you want to check the documentation for 1.x, head
+[this way](https://github.com/hautelook/AliceBundle/tree/1.x).**
 
 [![Package version](https://img.shields.io/packagist/v/hautelook/alice-bundle.svg?style=flat-square)](https://packagist.org/packages/hautelook/alice-bundle)
 [![Build Status](https://img.shields.io/travis/hautelook/AliceBundle/master.svg?style=flat-square)](https://travis-ci.org/hautelook/AliceBundle?branch=master)
@@ -12,53 +16,87 @@ Currently supports [Doctrine ORM](http://www.doctrine-project.org/projects/orm.h
 [![Dependency Status](https://www.versioneye.com/user/projects/55d26478265ff6001a000084/badge.svg?style=flat)](https://www.versioneye.com/user/projects/55d26478265ff6001a000084)
 [![Scrutinizer Code Quality](https://img.shields.io/scrutinizer/g/hautelook/AliceBundle.svg?style=flat-square)](https://scrutinizer-ci.com/g/hautelook/AliceBundle/?branch=master)
 [![Code Coverage](https://img.shields.io/scrutinizer/coverage/g/hautelook/AliceBundle.svg?b=master&style=flat-square)](https://scrutinizer-ci.com/g/hautelook/AliceBundle/?branch=master)
-[![HHVM support](https://img.shields.io/hhvm/hautelook/alice-bundle/master.svg?style=flat-square)](http://hhvm.h4cc.de/package/hautelook/alice-bundle)
+[![Slack](https://img.shields.io/badge/slack-%23alice--fixtures-red.svg?style=flat-square)](https://symfony-devs.slack.com/shared_invite/MTYxMjcxMjc0MTc5LTE0OTA3ODE4OTQtYzc4NWVmMzRmZQ)
 
-[![Gitter](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/hautelook/AliceBundle?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge)
+
+## When to use this bundle?
+
+HautelookAliceBundle changed a lot, it first was acting as a simple bundle for [nelmio/alice](https://github.com/nelmio/alice),
+it then started to ship some additional features to enrich it.
+
+HautelookAliceBundle 1.x was the first milestone reaching a certain level of maturity in its usage:
+
+- Easily load a set of fixtures from a command
+- Being able to define different sets of fixtures for multiple environments
+- Customize the data generation with custom Faker providers
+- Customize the loading behaviour with processors
+
+HautelookAliceBundle 2.x changes a lot, although not so much. In 1.x, a lot of complexity was brought in the bundle
+due to nelmio/alice 2.x limitations and were at best workarounds (like the lack of handling of circular references).
+A lot of that complexity has been pushed back to nelmio/alice 3.x which has a much more flexible design. As a result:
+
+- [nelmio/alice](https://github.com/nelmio/alice) 3.x allows you to easily create PHP objects with random data in an elegant way
+- [FidryAliceDataFixtures](https://github.com/theofidry/AliceDataFixtures) is a persistence layer for nelmio/alice 3.x. If you need to persist the loaded objects,
+  it is the package you need. It provides you the flexibility to be able to purge the data between each loadings or
+  wrap the loading in a transaction for your tests for example to simply rollback once the test is finished instead of
+  calling an expansive purge.
+- hautelook/alice-bundle 2.x provides high-level features including fixtures discovery (find the appropriate files and load them),
+  and helpers for database testing.
+  If you just need to load specific sets of files for your tests, [FidryAliceDataFixtures](https://github.com/theofidry/AliceDataFixtures) is enough.
+
 
 ## Documentation
 
 1. [Install](#installation)
-2. [Basic usage](#basic-usage)
-3. [Advanced usage](src/Resources/doc/advanced-usage.md)
-    1. [Enabling databases](src/Resources/doc/advanced-usage.md#enabling-databases)
-    2. [Fixtures parameters](src/Resources/doc/advanced-usage.md#fixtures-parameters)
-    3. [Doctrine ORM](src/Resources/doc/advanced-usage.md#doctrine-orm)
-    4. [Doctrine ODM (MongoDB)](src/Resources/doc/advanced-usage.md#doctrine-odm-and-doctrine-phpcr-odm)
-    5. [Doctrine PHPCR ODM](src/Resources/doc/advanced-usage.md#doctrine-odm-and-doctrine-phpcr-odm)
-4. [Custom Faker Providers](src/Resources/doc/faker-providers.md)
-    1. [Simple Provider](src/Resources/doc/faker-providers.md#simple-provider)
-    2. [Advanced Provider](src/Resources/doc/faker-providers.md#advanced-provider)
-5. [Custom Alice Processors](src/Resources/doc/alice-processors.md)
-6. [DoctrineFixturesBundle support](src/Resources/doc/doctrine-fixtures-bundle.md)
-7. [Resources](#resources)
+1. [Basic usage](#basic-usage)
+1. [Database testing](#database-testing)
+1. [Advanced usage](doc/advanced-usage.md)
+    1. [Enabling databases](doc/advanced-usage.md#enabling-databases)
+    1. [Environment specific fixtures](doc/advanced-usage.md#environment-specific-fixtures)
+    1. [Fixtures parameters](doc/advanced-usage.md#fixtures-parameters)
+        1. [Alice parameters](doc/advanced-usage.md#alice-parameters)
+        1. [Application parameters](doc/advanced-usage.md#application-parameters)
+    1. [Use service factories](doc/advanced-usage.md#use-service-factories)
+    1. [Load fixtures in a specific order](doc/advanced-usage.md#load-fixtures-in-a-specific-order)
+        1. [Load fixtures in a specific order](doc/advanced-usage.md#ordering-the-files-found)
+        1. [Persisting the classes in a specific order](doc/advanced-usage.md#persisting-the-classes-in-a-specific-order)
+1. [Custom Faker Providers](doc/faker-providers.md)
+1. [Custom Alice Processors](doc/alice-processors.md)
+1. [Resources](#resources)
 
-Other references:
-
-* [Knp University screencast](https://knpuniversity.com/screencast/alice-fixtures)
 
 ## Installation
 
-First you need install appropriate database managers (if you didn't install it yet), according to your project requirements.
-Check the documentation [here](src/Resources/doc/install.md).
+With [Symfony Flex](https://symfony.com/doc/current/setup/flex.html) (recommended):
 
-You can use [Composer](https://getcomposer.org/) to install the bundle to your project:
+```
+# If you do not have Doctrine installed yet:
+composer require doctrine-orm
 
-```bash
-composer require --dev hautelook/alice-bundle
+composer require --dev hautelook/alice-bundle 
 ```
 
-Then, enable the bundle by updating your `app/config/AppKernel.php` file to enable the bundle:
+You're ready to use AliceBundle, and can jump to the next section!
+
+Without Flex you will have to install `doctrine/orm` and register the bundles accordingly in `app/AppKernel.php` or
+wherever your Kernel class is located:
 
 ```php
 <?php
-// app/config/AppKernel.php
+// app/AppKernel.php
 
 public function registerBundles()
 {
-    //...
+    $bundles = [
+        new Symfony\Bundle\FrameworkBundle\FrameworkBundle(),
+        // ...
+        new Doctrine\Bundle\DoctrineBundle\DoctrineBundle(),
+    ];
+    
     if (in_array($this->getEnvironment(), ['dev', 'test'])) {
         //...
+        $bundles[] = new Nelmio\Alice\Bridge\Symfony\NelmioAliceBundle();
+        $bundles[] = new Fidry\AliceDataFixtures\Bridge\Symfony\FidryAliceDataFixturesBundle();
         $bundles[] = new Hautelook\AliceBundle\HautelookAliceBundle();
     }
 
@@ -66,62 +104,181 @@ public function registerBundles()
 }
 ```
 
-Configure the bundle to your needs (example with default values):
+Configure the bundle to your needs, for example:
 
 ```yaml
-# app/config/config_dev.yml
+# config/packages/dev/hautelook_alice.yaml
 
 hautelook_alice:
-    db_drivers:
-        orm: ~          # Enable Doctrine ORM if is registered
-        mongodb: ~      # Enable Doctrine ODM if is registered
-        phpcr: ~        # Enable Doctrine PHPCR ODM if is registered
-    locale: en_US       # Locale to used for faker; must be a valid Faker locale otherwise will fallback to en_EN
-    seed: 1             # A seed to make sure faker generates data consistently across runs, set to null to disable
-    persist_once: false # Only persist objects once if multiple files are passed
-    loading_limit: 5    # Maximum number of time the loader will try to load the files passed
+    fixtures_path: 'fixtures' # Path to which to look for fixtures relative to the project directory or the bundle path. May be a string or an array of strings.
+    root_dirs:
+        - '%kernel.root_dir%'
+        - '%kernel.project_dir%'
 ```
 
-Fore more information regarding the locale, refer to
-[Faker documentation on localization](https://github.com/fzaninotto/Faker#localization).
+If you are using a non-flex architecture, you may want to use `Resources/fixtures` instead of `fixtures`.
+
 
 ## Basic usage
 
-Assuming you are using [Doctrine](http://www.doctrine-project.org/projects/orm.html), install
-the [`doctrine/doctrine-bundle`](https://github.com/doctrine/DoctrineBundle) and [`doctrine/data-fixtures`](https://github.com/doctrine/data-fixtures) packages and register both bundles.
-Then create a fixture file in `AppBundle/DataFixtures/ORM`:
+Assuming you are using [Doctrine](http://www.doctrine-project.org/projects/orm.html), make sure you
+have the [`doctrine/doctrine-bundle`](https://github.com/doctrine/DoctrineBundle) and
+[`doctrine/data-fixtures`](https://github.com/doctrine/data-fixtures) packages installed.
+
+Then create a fixture file in one of the following location:
+
+- `fixtures` if you are using flex
+- `app/Resources/fixtures` if you have a non-flex bundle-less Symfony application
+- `src/AppBundle/Resources/fixtures` or any bundle under which you want to place the fixtures
 
 ```yaml
-# AppBundle/DataFixtures/ORM/dummy.yml
+# fixtures/dummy.yaml
 
-AppBundle\Entity\Dummy:
+App\Entity\Dummy:
     dummy_{1..10}:
         name: <name()>
-        related_dummy: @related_dummy*
+        related_dummy: '@related_dummy*'
 ```
 
 ```yaml
-# AppBundle/DataFixtures/ORM/related_dummy.yml
+# fixtures/related_dummy.yaml
 
-AppBundle\Entity\RelatedDummy:
+App\Entity\RelatedDummy:
     related_dummy_{1..10}:
         name: <name()>
 ```
 
-Then simply load your fixtures with the doctrine command `php app/console hautelook_alice:doctrine:fixtures:load` (or `php app/console h:d:f:l`).
+Then simply load your fixtures with the doctrine command `php bin/console hautelook:fixtures:load`.
 
-If you want to load the fixtures of a bundle only, do `php app/console h:d:f:l -b MyFirstBundle -b MySecondBundle`.
+If you want to load the fixtures of a bundle only, do `php bin/console hautelook:fixtures:load -b MyFirstBundle -b MySecondBundle`.
 
 [See more](#documentation).<br />
-Next chapter: [Advanced usage](src/Resources/doc/advanced-usage.md)
+Next chapter: [Advanced usage](doc/advanced-usage.md)
 
+
+## Database testing
+
+The bundle provides nice helpers, [inspired by Laravel](https://laravel.com/docs/5.6/database-testing#resetting-the-database-after-each-test),
+dedicated for database testing: `RefreshDatabaseTrait`, `ReloadDatabaseTrait` and `RecreateDatabaseTrait`.
+These traits allow to easily reset the database in a known state before each PHPUnit test: it purges the database then loads
+the fixtures.
+
+They are particularly helpful when writing [functional tests](https://symfony.com/doc/current/testing.html#functional-tests)
+and when using [Panther](https://github.com/symfony/panther).
+
+To improve performance, `RefreshDatabaseTrait` populates the database only one time, then wraps every tests in a
+transaction that will be rolled back at the end after its execution (regardless of if it's a success or a failure):
+
+```php
+<?php
+
+namespace App\Tests;
+
+use Hautelook\AliceBundle\PhpUnit\RefreshDatabaseTrait;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+class NewsTest extends WebTestCase
+{
+    use RefreshDatabaseTrait;
+
+    public function postCommentTest()
+    {
+        $client = static::createClient(); // The transaction starts just after the boot of the Symfony kernel
+        $crawler = $client->request('GET', '/my-news');
+        $form = $crawler->filter('#post-comment')->form(['new-comment' => 'Symfony is so cool!']);
+        $client->submit($form);
+        // At the end of this test, the transaction will be rolled back (even if the test fails)
+    }
+}
+```
+
+Sometimes, wrapping tests in transactions is not possible. For instance, when using Panther, changes to the database
+are made by another PHP process, so it wont work.
+In such cases, use the `ReloadDatabase` trait. It will purge the DB and load fixtures before every tests:
+
+```php
+<?php
+
+namespace App\Tests;
+
+use Hautelook\AliceBundle\PhpUnit\ReloadDatabaseTrait;
+use Symfony\Component\Panther\PantherTestCase;
+
+class NewsTest extends PantherTestCase // Be sure to extends KernelTestCase, WebTestCase or PantherTestCase
+{
+    use ReloadDatabaseTrait;
+
+    public function postCommentTest()
+    {
+        $client = static::createPantherClient();// The database will be reset after every boot of the Symfony kernel
+
+        $crawler = $client->request('GET', '/my-news');
+        $form = $crawler->filter('#post-comment')->form(['new-comment' => 'Symfony is so cool!']);
+        $client->submit($form);
+    }
+}
+```
+
+This strategy doesn't work when using Panther, because the changes to the database are done by another process, outside
+of the transaction.
+
+Both traits provide several configuration options as protected static properties:
+
+* `self::$manager`: The name of the Doctrine manager to use
+* `self::$bundles`: The list of bundles where to look for fixtures
+* `self::$append`: Append fixtures instead of purging
+* `self::$purgeWithTruncate`: Use TRUNCATE to purge
+* `self::$shard`: The name of the Doctrine shard to use
+* `self::$connection`: The name of the Doctrine connection to use
+
+Use them in the `setUpBeforeClass` method.
+
+```php
+<?php
+
+namespace App\Tests;
+
+use Hautelook\AliceBundle\PhpUnit\RefreshDatabaseTrait;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+class NewsTest extends WebTestCase
+{
+    use RefreshDatabaseTrait;
+
+    public static function setUpBeforeClass()
+    {
+        self::$append = true;
+    }
+
+    // ...
+}
+```
+
+Finally, if you're using in memory SQLite for your tests, use `RecreateDatabaseTrait` to create the database schema "on the fly":
+```php
+<?php
+
+namespace App\Tests;
+
+use Hautelook\AliceBundle\PhpUnit\RecreateDatabaseTrait;
+use Symfony\Bundle\FrameworkBundle\Test\WebTestCase;
+
+class NewsTest extends WebTestCase
+{
+    use RecreateDatabaseTrait;
+
+    // ...
+}
+```
 
 ## Resources
 
 * Behat extension: [AliceBundleExtension](https://github.com/theofidry/AliceBundleExtension)
+* Bundle for generating AliceBundle compatible fixtures directly from Doctrine entities: [AliceGeneratorBundle](https://github.com/trappar/AliceGeneratorBundle)
 * [Upgrade guide](UPGRADE.md)
   * [Upgrade from 0.X to 1.X](UPGRADE.md#from-0x-to-1x)
 * [Changelog](CHANGELOG.md)
+
 
 ## Credits
 
@@ -129,6 +286,7 @@ This bundle was originaly developped by [Baldur RENSCH](https://github.com/baldu
 
 [Other contributors](https://github.com/hautelook/AliceBundle/graphs/contributors).
 
+
 ## License
 
-[![license](https://img.shields.io/badge/license-MIT-red.svg?style=flat-square)](Resources/meta/LICENSE)
+[![license](https://img.shields.io/badge/license-MIT-red.svg?style=flat-square)](LICENSE)

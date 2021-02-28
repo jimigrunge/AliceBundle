@@ -13,59 +13,52 @@ namespace Hautelook\AliceBundle\DependencyInjection;
 
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
+use Symfony\Component\HttpKernel\Kernel;
 
 /**
- * The configuration of the bundle.
+ * @private
  *
  * @author Baldur Rensch <brensch@gmail.com>
+ * @author Théo FIDRY <theo.fidry@gmail.com>
  */
-class Configuration implements ConfigurationInterface
+final class Configuration implements ConfigurationInterface
 {
-    const ORM_DRIVER = 'orm';
-    const MONGODB_DRIVER = 'mongodb';
-    const PHPCR_DRIVER = 'phpcr';
-
     /**
      * {@inheritdoc}
      */
     public function getConfigTreeBuilder()
     {
-        $treeBuilder = new TreeBuilder();
-        $rootNode = $treeBuilder->root('hautelook_alice');
+        $treeBuilder = new TreeBuilder('hautelook_alice');
+
+        if (method_exists($treeBuilder, 'getRootNode')) {
+            $rootNode = $treeBuilder->getRootNode();
+        } else {
+            // BC for symfony/config < 4.2
+            $rootNode = $treeBuilder->root('hautelook_alice');
+        }
+
+        $defaultRootDirsValue = [
+            '%kernel.root_dir%',
+            '%kernel.project_dir%',
+        ];
+        if (Kernel::VERSION_ID >= 50000) {
+            $defaultRootDirsValue = [
+                '%kernel.project_dir%',
+            ];
+        }
 
         $rootNode
             ->children()
-                ->arrayNode('db_drivers')
-                    ->info('The list of enabled drivers.')
-                    ->addDefaultsIfNotSet()
-                    ->cannotBeOverwritten()
-                    ->children()
-                        ->booleanNode(self::ORM_DRIVER)
-                            ->defaultValue(null)
-                        ->end()
-                        ->booleanNode(self::MONGODB_DRIVER)
-                            ->defaultValue(null)
-                        ->end()
-                        ->booleanNode(self::PHPCR_DRIVER)
-                            ->defaultValue(null)
-                        ->end()
-                    ->end()
+                ->arrayNode('fixtures_path')
+                    ->info('Path(s) to which to look for fixtures relative to the bundle/root directory paths.')
+                    ->beforeNormalization()->castToArray()->end()
+                    ->defaultValue(['Resources/fixtures'])
+                    ->scalarPrototype()->end()
                 ->end()
-                ->scalarNode('locale')
-                    ->defaultValue('en_US')
-                    ->info('Locale to use with faker')
-                ->end()
-                ->integerNode('seed')
-                    ->defaultValue(1)
-                    ->info('A seed to make sure faker generates data consistently across runs, set to null to disable')
-                ->end()
-                ->booleanNode('persist_once')
-                    ->defaultValue(false)
-                    ->info('Only persist objects once if multiple files are passed')
-                ->end()
-                ->scalarNode('loading_limit')
-                    ->defaultValue(5)
-                    ->info('Maximum number of time the loader will try to load the files passed')
+                ->arrayNode('root_dirs')
+                    ->info('List of root directories into which to look for the fixtures.')
+                    ->defaultValue($defaultRootDirsValue)
+                    ->scalarPrototype()
                 ->end()
             ->end()
         ;

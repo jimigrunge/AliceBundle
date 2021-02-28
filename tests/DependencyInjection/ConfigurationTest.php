@@ -9,46 +9,95 @@
  * file that was distributed with this source code.
  */
 
-namespace Hautelook\AliceBundle\Tests\DependencyInjection;
+namespace Hautelook\AliceBundle\DependencyInjection;
 
-use Hautelook\AliceBundle\DependencyInjection\Configuration;
+use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Processor;
+use Symfony\Component\HttpKernel\Kernel;
 
 /**
- * @coversDefaultClass Hautelook\AliceBundle\DependencyInjection\Configuration
- *
- * @author Théo FIDRY <theo.fidry@gmail.com>
+ * @covers \Hautelook\AliceBundle\DependencyInjection\Configuration
  */
-class ConfigurationTest extends \PHPUnit_Framework_TestCase
+class ConfigurationTest extends TestCase
 {
-    private static $defaultConfig = [
-        'db_drivers'    => [
-            'orm'     => null,
-            'mongodb' => null,
-            'phpcr'   => null,
-        ],
-        'locale'        => 'en_US',
-        'seed'          => 1,
-        'persist_once'  => false,
-        'loading_limit' => 5,
-    ];
-
-    /**
-     * @cover ::getConfigTreeBuilder
-     */
-    public function testDefaultConfig()
+    public function testDefaultValues()
     {
         $configuration = new Configuration();
-        $treeBuilder = $configuration->getConfigTreeBuilder();
         $processor = new Processor();
-        $config = $processor->processConfiguration(
+
+        $expected = [
+            'fixtures_path' => ['Resources/fixtures'],
+            'root_dirs' => [
+                '%kernel.root_dir%',
+                '%kernel.project_dir%',
+            ],
+        ];
+
+        if (Kernel::VERSION_ID >= 50000) {
+            $expected = [
+                'fixtures_path' => ['Resources/fixtures'],
+                'root_dirs' => [
+                    '%kernel.project_dir%',
+                ],
+            ];
+        }
+
+        $actual = $processor->processConfiguration($configuration, []);
+
+        $this->assertEquals($expected, $actual);
+    }
+
+    public function testDefaultValuesCanBeOverridden()
+    {
+        $configuration = new Configuration();
+        $processor = new Processor();
+
+        $expected = [
+            'fixtures_path' => ['/Resources/path/to/fixtures'],
+            'root_dirs' => [
+                'my/root/dir',
+            ],
+        ];
+
+        $actual = $processor->processConfiguration(
             $configuration,
             [
-                'hautelook_alice' => [],
+                'hautelook_alice' => [
+                    'fixtures_path' => ['/Resources/path/to/fixtures'],
+                    'root_dirs' => [
+                        'my/root/dir',
+                    ],
+                ],
             ]
         );
-        $this->assertInstanceOf('Symfony\Component\Config\Definition\ConfigurationInterface', $configuration);
-        $this->assertInstanceOf('Symfony\Component\Config\Definition\Builder\TreeBuilder', $treeBuilder);
-        $this->assertSame(self::$defaultConfig, $config);
+
+        $this->assertEquals($expected, $actual);
+    }
+
+    public function testSingleFixturePathIsConvertedToArray()
+    {
+        $configuration = new Configuration();
+        $processor = new Processor();
+
+        $expected = [
+            'fixtures_path' => ['/Resources/path/to/fixtures'],
+            'root_dirs' => [
+                'my/root/dir',
+            ],
+        ];
+
+        $actual = $processor->processConfiguration(
+            $configuration,
+            [
+                'hautelook_alice' => [
+                    'fixtures_path' => '/Resources/path/to/fixtures',
+                    'root_dirs' => [
+                        'my/root/dir',
+                    ],
+                ],
+            ]
+        );
+
+        $this->assertEquals($expected, $actual);
     }
 }
