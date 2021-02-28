@@ -11,6 +11,7 @@
 
 namespace Hautelook\AliceBundle\Tests\Doctrine\Command;
 
+use Doctrine\DBAL\Sharding\PoolingShardConnection;
 use Doctrine\ORM\EntityManager;
 use Symfony\Component\Console\Tester\CommandTester;
 
@@ -23,24 +24,39 @@ class DoctrineORMFixturesTest extends CommandTestCase
     /**
      * @var EntityManager
      */
-    private $entityManager;
+    private $defaultEntityManager;
 
     protected function setUp()
     {
+        if (false === class_exists('Doctrine\Bundle\DoctrineBundle\DoctrineBundle', true)) {
+            $this->markTestSkipped('Bundle not installed.');
+        }
+
         parent::setUp();
 
         $this->application->add(
             self::$kernel->getContainer()->get('hautelook_alice.doctrine.command.load_command')
         );
 
-        $this->entityManager = $this->application->getKernel()->getContainer()->get('doctrine')->getManager();
+        $doctrineORM = $this->application->getKernel()->getContainer()->get('doctrine');
+        $this->defaultEntityManager = $doctrineORM->getManager();
 
-        // Create shard database
-        $connection = $this->entityManager->getConnection();
-        $connection->connect(1);
-        $this->runConsole('doctrine:schema:drop', ['--force' => true]);
-        $this->runConsole('doctrine:schema:create');
-        $connection->connect(0);
+        // Create required MySQL databases for ORM
+        $this->runConsole('doctrine:database:create', ['--if-not-exists' => true, '--connection' => 'mysql']);
+        $this->runConsole('doctrine:database:create', ['--if-not-exists' => true, '--connection' => 'mysql', '--shard' => 1]);
+
+        // Reset ORM schemas
+        foreach ($doctrineORM->getManagers() as $name => $manager) {
+            $this->runConsole('doctrine:schema:drop', ['--force' => true, '--em' => $name]);
+            $this->runConsole('doctrine:schema:create', ['--em' => $name]);
+            $connection = $manager->getConnection();
+            if ($connection instanceof PoolingShardConnection) {
+                $connection->connect(1);
+                $this->runConsole('doctrine:schema:drop', ['--force' => true, '--em' => $name]);
+                $this->runConsole('doctrine:schema:create', ['--em' => $name]);
+                $connection->connect(0);
+            }
+        }
     }
 
     /**
@@ -63,12 +79,55 @@ class DoctrineORMFixturesTest extends CommandTestCase
      * @param array  $inputs
      * @param string $expected
      */
-    public function testFixturesRegistering(array $inputs, $expected)
+    public function testFixturesRegisteringUsingSQLite(array $inputs, $expected)
     {
         $command = $this->application->find('hautelook_alice:doctrine:fixtures:load');
 
         $commandTester = new CommandTester($command);
-        $commandTester->execute(array_merge(['command' => 'hautelook_alice:doctrine:fixtures:load'], $inputs), ['interactive' => false]);
+        $commandTester->execute(array_merge([
+            'command' => 'hautelook_alice:doctrine:fixtures:load',
+        ], $inputs), ['interactive' => false]);
+
+        $this->assertFixturesDisplayEquals($expected, $commandTester->getDisplay());
+    }
+
+    /**
+     * @dataProvider loadCommandProvider
+     *
+     * @param array  $inputs
+     * @param string $expected
+     *
+     * @expectedException \InvalidArgumentException
+     * @expectedExceptionMessage Doctrine ORM Manager named "foo" does not exist.
+     */
+    public function testFixturesRegisteringUsingInvalidManager(array $inputs, $expected)
+    {
+        $command = $this->application->find('hautelook_alice:doctrine:fixtures:load');
+
+        $commandTester = new CommandTester($command);
+        $commandTester->execute(array_merge([
+            'command' => 'hautelook_alice:doctrine:fixtures:load',
+            '--manager' => 'foo',
+        ], $inputs), ['interactive' => false]);
+
+        $this->assertFixturesDisplayEquals($expected, $commandTester->getDisplay());
+    }
+
+    /**
+     * @dataProvider loadCommandProvider
+     *
+     * @param array  $inputs
+     * @param string $expected
+     */
+    public function testFixturesRegisteringUsingMySQL(array $inputs, $expected)
+    {
+        $command = $this->application->find('hautelook_alice:doctrine:fixtures:load');
+
+        $commandTester = new CommandTester($command);
+        $commandTester->execute(array_merge([
+            'command' => 'hautelook_alice:doctrine:fixtures:load',
+            '--manager' => 'mysql',
+        ], $inputs), ['interactive' => false]);
 
         $this->assertFixturesDisplayEquals($expected, $commandTester->getDisplay());
     }
@@ -76,16 +135,16 @@ class DoctrineORMFixturesTest extends CommandTestCase
     private function verifyProducts()
     {
         for ($i = 1; $i <= 10; ++$i) {
-            /* @var \Hautelook\AliceBundle\Tests\SymfonyApp\TestBundle\Entity\Product */
-            $product = $this->entityManager->find(
-                'Hautelook\AliceBundle\Tests\SymfonyApp\TestBundle\Entity\Product',
+            /* @var \Hautelook\AliceBundle\Tests\Functional\TestBundle\Entity\Product */
+            $product = $this->defaultEntityManager->find(
+                'Hautelook\AliceBundle\Tests\Functional\TestBundle\Entity\Product',
                 $i
             );
             $this->assertStringStartsWith('Awesome Product', $product->getDescription());
 
             // Make sure every product has a brand
             $this->assertInstanceOf(
-                'Hautelook\AliceBundle\Tests\SymfonyApp\TestBundle\Entity\Brand',
+                'Hautelook\AliceBundle\Tests\Functional\TestBundle\Entity\Brand',
                 $product->getBrand()
             );
         }
@@ -94,9 +153,9 @@ class DoctrineORMFixturesTest extends CommandTestCase
     private function verifyBrands()
     {
         for ($i = 1; $i <= 10; ++$i) {
-            /* @var $brand \Hautelook\AliceBundle\Tests\SymfonyApp\TestBundle\Entity\Brand */
-            $this->entityManager->find(
-                'Hautelook\AliceBundle\Tests\SymfonyApp\TestBundle\Entity\Brand',
+            /* @var $brand \Hautelook\AliceBundle\Tests\Functional\TestBundle\Entity\Brand */
+            $this->defaultEntityManager->find(
+                'Hautelook\AliceBundle\Tests\Functional\TestBundle\Entity\Brand',
                 $i
             );
         }
@@ -110,10 +169,10 @@ class DoctrineORMFixturesTest extends CommandTestCase
             [],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
   > purging database
   > fixtures loaded
 
@@ -126,11 +185,11 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Dev/dev.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Dev/dev.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
   > purging database
   > fixtures loaded
 
@@ -143,11 +202,11 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Prod/prod.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Prod/prod.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
   > purging database
   > fixtures loaded
 
@@ -160,11 +219,11 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Prod/prod.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Prod/prod.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
   > purging database
   > fixtures loaded
 
@@ -180,9 +239,9 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Dev/dev.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Dev/dev.yml
   > purging database
   > fixtures loaded
 
@@ -198,7 +257,7 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
   > purging database
   > fixtures loaded
 
@@ -215,10 +274,10 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Dev/dev.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Dev/dev.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
   > purging database
   > fixtures loaded
 
@@ -234,8 +293,8 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/ABundle/DataFixtures/ORM/aentity.php
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/Bundle/BBundle/DataFixtures/ORM/bentity.yml
   > purging database
   > fixtures loaded
 
@@ -251,8 +310,8 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
   > purging database
   > fixtures loaded
 
@@ -268,9 +327,9 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Ignored2/notIgnored.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Ignored2/notIgnored.yml
   > purging database
   > fixtures loaded
 
@@ -286,9 +345,9 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Provider/testFormatter.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Provider/testFormatter.yml
   > purging database
   > fixtures loaded
 
@@ -305,9 +364,9 @@ EOF
             ],
             <<<'EOF'
               > fixtures found:
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/brand.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/product.yml
-      - /home/travis/build/theofidry/AliceBundle/tests/SymfonyApp/TestBundle/DataFixtures/ORM/Shard/shard.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/brand.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/product.yml
+      - /home/travis/build/theofidry/AliceBundle/tests/Functional/TestBundle/DataFixtures/ORM/Shard/shard.yml
   > purging database
   > fixtures loaded
 

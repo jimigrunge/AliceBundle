@@ -19,10 +19,5 @@ namespace Hautelook\AliceBundle\Tests;
  */
 class KernelTestCase extends SymfonyKernelTestCase
 {
-    protected static $class = 'Hautelook\AliceBundle\Tests\SymfonyApp\AppKernel';
-
-    protected static function bootKernel(array $options = [])
-    {
-        parent::bootKernel(array_merge(['debug' => false], $options));
-    }
+    protected static $class = 'Hautelook\AliceBundle\Tests\Functional\AppKernel';
 }

@@ -109,6 +109,7 @@ class LoadDataFixturesCommand extends Command
     protected function configure()
     {
         $this
+            ->setAliases(['fixtures:load', 'hautelook_alice:fixtures:load'])
             ->setDescription('Load data fixtures to your database.')
             ->addOption(
                 'bundle',
@@ -116,6 +117,7 @@ class LoadDataFixturesCommand extends Command
                 InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY,
                 'Bundles where fixtures should be loaded.'
             )
+            ->addOption('fixtures', null, InputOption::VALUE_OPTIONAL | InputOption::VALUE_IS_ARRAY, 'The directory to load data fixtures from.')
             ->addOption(
                 'manager',
                 'em',
@@ -152,13 +154,6 @@ class LoadDataFixturesCommand extends Command
      */
     protected function execute(InputInterface $input, OutputInterface $output)
     {
-        if (false !== strpos($input->getFirstArgument(), 'hautelook_alice:fixtures:load')
-            || false !== strpos($input->getFirstArgument(), 'h:f:l')
-        ) {
-            $output->writeln('<comment>The use of "hautelook_alice:fixtures:load" command is deprecated since 1.0 and will be removed in 2.0. Use the
-"hautelook_alice:doctrine:fixtures:load" instead.</comment>');
-        }
-
         // Warn the user that the database will be purged
         // Ask him to confirm his choice
         if ($input->isInteractive() && !$input->getOption('append')) {
@@ -185,7 +180,12 @@ class LoadDataFixturesCommand extends Command
 
         // Get bundles
         if (true === empty($bundles)) {
-            $bundles = $application->getKernel()->getBundles();
+            $dirOrFile = $input->getOption('fixtures');
+            if ($dirOrFile) {
+                $bundles = is_array($dirOrFile) ? $dirOrFile : [$dirOrFile];
+            } else {
+                $bundles = $application->getKernel()->getBundles();
+            }
         } else {
             $bundles = $this->bundlesResolver->resolveBundles($application, $bundles);
         }

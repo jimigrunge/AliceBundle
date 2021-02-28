@@ -2,8 +2,8 @@
 
 ## Simple Provider
 
-As explained in [nelmio/alice](https://github.com/nelmio/alice#custom-faker-data-providers) documentation, you have
-three ways to declare custom data provider. To use [Custom Faker Provider classes][1]
+As explained in [nelmio/alice](https://github.com/nelmio/alice/blob/2.x/doc/customizing-data-generation.md#customizing-data-generation) 
+documentation, you have three ways to declare custom data provider. To use [Custom Faker Provider classes][1]
 you will have to declare them as services:
 
 ```php
@@ -92,5 +92,5 @@ services:
 Previous chapter: [Advanced usage](advanced-usage.md)<br />
 Next chapter: [Custom Alice Processors](alice-processors.md)
 
-[1]: https://github.com/nelmio/alice/blob/master/doc/customizing-data-generation.md#add-a-custom-faker-provider-class
+[1]: https://github.com/nelmio/alice/blob/2.x/doc/customizing-data-generation.md#add-a-custom-faker-provider-class
 [2]: https://github.com/fzaninotto/Faker/blob/master/src/Faker/Provider/Base.php

@@ -8,6 +8,9 @@
         <service id="hautelook_alice.doctrine.orm.fixtures_finder"
                  class="Hautelook\AliceBundle\Doctrine\Finder\FixturesFinder">
             <argument type="string">DataFixtures/ORM</argument>
+            <call method="setContainer">
+                <argument type="service" id="service_container" />
+            </call>
         </service>
 
         <service id="hautelook_alice.doctrine.orm.loader_generator"
@@ -16,8 +19,7 @@
         </service>
 
         <service id="hautelook_alice.doctrine.command.deprecated_load_command"
-                 class="Hautelook\AliceBundle\Doctrine\Command\LoadDataFixturesCommand"
-                 lazy="true">
+                 class="Hautelook\AliceBundle\Doctrine\Command\LoadDataFixturesCommand">
             <argument type="string">hautelook_alice:fixtures:load</argument>
             <argument type="service" id="doctrine" />
             <argument type="service" id="hautelook_alice.fixtures.loader" />
@@ -30,8 +32,7 @@
         </service>
 
         <service id="hautelook_alice.doctrine.command.load_command"
-                 class="Hautelook\AliceBundle\Doctrine\Command\LoadDataFixturesCommand"
-                 lazy="true">
+                 class="Hautelook\AliceBundle\Doctrine\Command\LoadDataFixturesCommand">
             <argument type="string">hautelook_alice:doctrine:fixtures:load</argument>
             <argument type="service" id="doctrine" />
             <argument type="service" id="hautelook_alice.fixtures.loader" />
